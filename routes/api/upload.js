@@ -43,6 +43,7 @@ export const routes = {
          const file = req.file
          const fields = req.body
          const { id, newFilename } = req.fileInfo
+         const user = req.session?.user
 
          if (!file) {
             return res.status(400).json({
@@ -52,7 +53,7 @@ export const routes = {
             })
          }
 
-         if (fields.expiry === 'permanent' && !fields.pin) {
+         if (!user && fields.expiry === 'permanent' && !fields.pin) {
             return res.status(401).json({
                creator: global.creator,
                status: false,
@@ -60,7 +61,7 @@ export const routes = {
             })
          }
 
-         if (fields.expiry === 'permanent' && fields.pin !== process.env.PIN) {
+         if (!user && fields.expiry === 'permanent' && fields.pin !== process.env.PIN) {
             return res.status(401).json({
                creator: global.creator,
                status: false,
@@ -69,20 +70,30 @@ export const routes = {
          }
 
          let expired
-         switch (fields.expiry) {
-            case '5m': expired = Date.now() + 5 * 60 * 1000; break
-            case '15m': expired = Date.now() + 15 * 60 * 1000; break
-            case '30m': expired = Date.now() + 30 * 60 * 1000; break
-            case '1h': expired = Date.now() + 60 * 60 * 1000; break
-            case '1d': expired = Date.now() + 24 * 60 * 60 * 1000; break
-            case '3d': expired = Date.now() + 3 * 24 * 60 * 60 * 1000; break
-            case '7w': expired = Date.now() + 7 * 24 * 60 * 60 * 1000; break
-            case 'permanent': expired = -1; break
-            default: expired = Date.now() + 5 * 60 * 1000
+         if (user) {
+            expired = fields.expiry === 'permanent' || !fields.expiry ? -1 : (isNaN(fields.expiry) ? getExpiryTime(fields.expiry) : Date.now() + parseInt(fields.expiry))
+         } else {
+            expired = getExpiryTime(fields.expiry)
+         }
+
+         function getExpiryTime(expiry) {
+            switch (expiry) {
+               case '5m': return Date.now() + 5 * 60 * 1000
+               case '15m': return Date.now() + 15 * 60 * 1000
+               case '30m': return Date.now() + 30 * 60 * 1000
+               case '1h': return Date.now() + 60 * 60 * 1000
+               case '1d': return Date.now() + 24 * 60 * 60 * 1000
+               case '3d': return Date.now() + 3 * 24 * 60 * 60 * 1000
+               case '7w': return Date.now() + 7 * 24 * 60 * 60 * 1000
+               case 'permanent': return -1
+               default: return Date.now() + 5 * 60 * 1000
+            }
          }
 
          await global.db.insert('uploader', {
             code: id,
+            user_id: user ? user.id : null,
+            folder_id: fields.folder_id || null,
             original: file.originalname,
             filename: newFilename,
             bytes: file.size,

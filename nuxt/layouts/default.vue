@@ -22,6 +22,24 @@
                   </ul>
                </div>
                <Theme />
+               <div class="d-flex align-items-center gap-2">
+                  <div v-if="auth.loading" class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                  <template v-else>
+                     <div v-if="auth.user" class="dropdown">
+                        <button class="btn p-0 border-0 d-flex align-items-center gap-2 dropdown-toggle no-caret"
+                           type="button" data-bs-toggle="dropdown">
+                           <img :src="auth.user.picture" class="rounded-circle" width="32" height="32" :alt="auth.user.name">
+                           <span class="d-none d-md-inline small fw-medium text-primary-color">{{ auth.user.name }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 mt-2">
+                           <li><NuxtLink class="dropdown-item py-2" to="/dashboard"><i class="bi bi-grid me-2"></i> Dashboard</NuxtLink></li>
+                           <li><hr class="dropdown-divider"></li>
+                           <li><button class="dropdown-item py-2 text-danger" @click="auth.logout"><i class="bi bi-box-arrow-right me-2"></i> Logout</button></li>
+                        </ul>
+                     </div>
+                     <div v-else id="google-login-btn"></div>
+                  </template>
+               </div>
                <button class="navbar-toggler d-md-none border-0 p-0" type="button" @click="toggleSidebar">
                   <i class="bi bi-three-dots fs-1 text-primary-color"></i>
                </button>
@@ -97,8 +115,10 @@ import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRuntimeConfig, useRoute } from '#app'
 import { usePageEffects } from '@/composables/usePageEffects'
 import { Offcanvas } from 'bootstrap'
+import { useAuthStore } from '~/stores/auth'
 
 const config = useRuntimeConfig()
+const auth = useAuthStore()
 const { isScrolled } = usePageEffects()
 
 const mobileSidebarRef = ref<HTMLElement | null>(null)
@@ -107,6 +127,7 @@ const isSidebarOpen = ref(false)
 
 const navLinks = ref([
    { text: 'Home', href: '/', icon: 'bi bi-house' },
+   { text: 'Dashboard', href: '/dashboard', icon: 'bi bi-grid' },
    { text: 'Documentation', href: '/docs', icon: 'bi bi-book' },
 ])
 
@@ -117,16 +138,59 @@ const closeSidebar = () => { isSidebarOpen.value = false }
 
 watch(isSidebarOpen, (isOpen) => { if (mobileSidebarInstance) isOpen ? mobileSidebarInstance.show() : mobileSidebarInstance.hide() })
 
-onMounted(() => {
+const handleGoogleCallback = async (response: any) => {
+   const success = await auth.login(response.credential)
+   if (success) {
+      console.log('Login success')
+   }
+}
+
+onMounted(async () => {
+   await auth.fetchUser()
+
    if (mobileSidebarRef.value && process.client) {
       mobileSidebarInstance = new Offcanvas(mobileSidebarRef.value, { backdrop: false, keyboard: true })
       mobileSidebarRef.value.addEventListener('hidden.bs.offcanvas', () => { isSidebarOpen.value = false })
    }
+
+   // Load Google Script
+   const script = document.createElement('script')
+   script.src = 'https://accounts.google.com/gsi/client'
+   script.async = true
+   script.defer = true
+   script.onload = () => {
+      if (window.google && !auth.user) {
+         window.google.accounts.id.initialize({
+            client_id: config.public.googleClientId,
+            callback: handleGoogleCallback
+         })
+         window.google.accounts.id.renderButton(
+            document.getElementById('google-login-btn'),
+            { theme: 'outline', size: 'medium', shape: 'pill' }
+         )
+      }
+   }
+   document.head.appendChild(script)
 })
 onUnmounted(() => { if (mobileSidebarRef.value) mobileSidebarRef.value.removeEventListener('hidden.bs.offcanvas', () => { }) })
 </script>
 
 <style scoped>
+.no-caret::after {
+   display: none !important;
+}
+.dropdown-menu {
+   background-color: var(--app-card-bg);
+   border: 1px solid var(--app-border-color) !important;
+}
+.dropdown-item {
+   color: var(--app-text-color);
+   font-size: 0.9rem;
+}
+.dropdown-item:hover {
+   background-color: var(--app-bg);
+   color: var(--app-text-color);
+}
 .navbar {
    transition: background-color 0.3s;
    background-color: var(--dark-card-bg);
