@@ -7,7 +7,11 @@ export default defineNuxtConfig({
          title: 'Uploader',
          tagline: 'Simple & Permanent Cloud Storage',
          baseURL: process.env.DOMAIN || 'http://localhost:7860',
-         file_path: process.env.FILE_PATH || 'p'
+         file_path: process.env.FILE_PATH || 'p',
+         popup: {
+            title: 'Welcome!',
+            description: 'This is a permanent cloud storage platform. Login with Google to start managing your files.'
+         }
       }
    },
    app: {
